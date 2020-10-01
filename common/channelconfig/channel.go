@@ -78,6 +78,7 @@ type ChannelConfig struct {
 
 // NewChannelConfig creates a new ChannelConfig
 func NewChannelConfig(channelGroup *cb.ConfigGroup, bccsp bccsp.BCCSP) (*ChannelConfig, error) {
+	logger.Debugf("NewChannelConfig")
 	cc := &ChannelConfig{
 		protos: &ChannelProtos{},
 	}

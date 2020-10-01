@@ -180,6 +180,7 @@ func NewBundleFromEnvelope(env *cb.Envelope, bccsp bccsp.BCCSP) (*Bundle, error)
 
 // NewBundle creates a new immutable bundle of configuration
 func NewBundle(channelID string, config *cb.Config, bccsp bccsp.BCCSP) (*Bundle, error) {
+	logger.Debugf("NewBundle")
 	if err := preValidate(config); err != nil {
 		return nil, err
 	}

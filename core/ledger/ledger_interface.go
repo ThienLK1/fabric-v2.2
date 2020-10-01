@@ -57,6 +57,7 @@ type StateDBConfig struct {
 	// CouchDB is the configuration for CouchDB.  It is used when StateDatabase
 	// is set to "CouchDB".
 	CouchDB *CouchDBConfig
+	MongoDB *MongoDBConfig
 }
 
 // CouchDBConfig is a structure used to configure a CouchInstance.
@@ -88,6 +89,45 @@ type CouchDBConfig struct {
 	// CreateGlobalChangesDB determines whether or not to create the "_global_changes"
 	// system database.
 	CreateGlobalChangesDB bool
+	// RedoLogPath is the directory where the CouchDB redo log files are stored.
+	RedoLogPath string
+	// UserCacheSizeMBs denotes the user specified maximum mega bytes (MB) to be allocated
+	// for the user state cache (i.e., all chaincodes deployed by the user). Note that
+	// UserCacheSizeMBs needs to be a multiple of 32 MB. If it is not a multiple of 32 MB,
+	// the peer would round the size to the next multiple of 32 MB.
+	UserCacheSizeMBs int
+}
+
+// MongoDBConfig is a structure used to configure a MongoInstance.
+type MongoDBConfig struct {
+	// Address is the hostname:port of the MongoDB database instance.
+	Address string
+	// Username is the username used to authenticate with MongoDB.  This username
+	// must have read and write access permissions.
+	Username string
+	// Password is the password for Username.
+	Password string
+	// MaxRetries is the maximum number of times to retry MongoDB operations on
+	// failure.
+	MaxRetries int
+	// MaxRetriesOnStartup is the maximum number of times to retry MongoDB operations on
+	// failure when initializing the ledger.
+	MaxRetriesOnStartup int
+	//  The default DatabaseName for MongoDB.
+	DatabaseName string
+	//  The default collectionName for MongoDB.
+	CollectionName string
+	// RequestTimeout is the timeout used for MongoDB operations.
+	RequestTimeout time.Duration
+	// QueryLimit is the maximum number of records to return internally
+	// when querying MongoDB.
+	QueryLimit int
+	// MaxBatchUpdateSize is the maximum number of records to included in CouchDB
+	// bulk update operations.
+	MaxBatchUpdateSize int
+	// WarmIndexesAfterNBlocks is the number of blocks after which to warm any
+	// CouchDB indexes.
+	WarmIndexesAfterNBlocks int
 	// RedoLogPath is the directory where the CouchDB redo log files are stored.
 	RedoLogPath string
 	// UserCacheSizeMBs denotes the user specified maximum mega bytes (MB) to be allocated

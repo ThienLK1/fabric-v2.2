@@ -569,12 +569,12 @@ func initializeServerConfig(conf *localconfig.TopLevel, metricsProvider metrics.
 		ConnectionTimeout:  conf.General.ConnectionTimeout,
 		StreamInterceptors: []grpc.StreamServerInterceptor{
 			grpcmetrics.StreamServerInterceptor(grpcmetrics.NewStreamMetrics(metricsProvider)),
-			grpclogging.StreamServerInterceptor(flogging.MustGetLogger("comm.grpc.server").Zap()),
+			grpclogging.StreamServerInterceptor(flogging.MustGetLogger("main.go StreamServerInterceptor comm.grpc.server").Zap()),
 		},
 		UnaryInterceptors: []grpc.UnaryServerInterceptor{
 			grpcmetrics.UnaryServerInterceptor(grpcmetrics.NewUnaryMetrics(metricsProvider)),
 			grpclogging.UnaryServerInterceptor(
-				flogging.MustGetLogger("comm.grpc.server").Zap(),
+				flogging.MustGetLogger("main.go UnaryServerInterceptor comm.grpc.server").Zap(),
 				grpclogging.WithLeveler(grpclogging.LevelerFunc(grpcLeveler)),
 			),
 		},

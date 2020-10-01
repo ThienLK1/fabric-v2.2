@@ -242,6 +242,7 @@ func ACLValues(acls map[string]string) *StandardConfigValue {
 
 // ValidateCapabilities validates whether the peer can meet the capabilities requirement in the given config block
 func ValidateCapabilities(block *cb.Block, bccsp bccsp.BCCSP) error {
+	logger.Debugf("ValidateCapabilities")
 	cc, err := extractChannelConfig(block, bccsp)
 	if err != nil {
 		return err
@@ -257,6 +258,7 @@ func ValidateCapabilities(block *cb.Block, bccsp bccsp.BCCSP) error {
 
 // ExtractMSPIDsForApplicationOrgs extracts MSPIDs for application organizations
 func ExtractMSPIDsForApplicationOrgs(block *cb.Block, bccsp bccsp.BCCSP) ([]string, error) {
+	logger.Debugf("ExtractMSPIDsForApplicationOrgs")
 	cc, err := extractChannelConfig(block, factory.GetDefault())
 	if err != nil {
 		return nil, err
@@ -274,6 +276,7 @@ func ExtractMSPIDsForApplicationOrgs(block *cb.Block, bccsp bccsp.BCCSP) ([]stri
 }
 
 func extractChannelConfig(block *cb.Block, bccsp bccsp.BCCSP) (*ChannelConfig, error) {
+	logger.Debugf("extractChannelConfig")
 	envelopeConfig, err := protoutil.ExtractEnvelope(block, 0)
 	if err != nil {
 		return nil, errors.WithMessage(err, "malformed configuration block")
@@ -301,7 +304,7 @@ func extractChannelConfig(block *cb.Block, bccsp bccsp.BCCSP) (*ChannelConfig, e
 	if !exists {
 		return nil, errors.Errorf("invalid configuration block, missing %s configuration group", ApplicationGroupKey)
 	}
-
+	
 	cc, err := NewChannelConfig(configEnv.Config.ChannelGroup, bccsp)
 	if err != nil {
 		return nil, errors.WithMessage(err, "no valid channel configuration found")

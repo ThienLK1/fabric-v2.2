@@ -60,7 +60,8 @@ MAKEFLAGS += --no-builtin-rules
 BUILD_DIR ?= build
 
 EXTRA_VERSION ?= $(shell git rev-parse --short HEAD)
-PROJECT_VERSION=$(BASE_VERSION)-snapshot-$(EXTRA_VERSION)
+NAME_TAG ?= fabric-sp-mongodb
+PROJECT_VERSION=$(BASE_VERSION)-$(NAME_TAG)
 
 # TWO_DIGIT_VERSION is derived, e.g. "2.0", especially useful as a local tag
 # for two digit references to most recent baseos and ccenv patch releases

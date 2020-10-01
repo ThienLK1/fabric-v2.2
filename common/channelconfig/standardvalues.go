@@ -16,6 +16,7 @@ import (
 
 // DeserializeGroup deserializes the value for all values in a config group
 func DeserializeProtoValuesFromGroup(group *cb.ConfigGroup, protosStructs ...interface{}) error {
+	logger.Debugf("DeserializeProtoValuesFromGroup")
 	sv, err := NewStandardValues(protosStructs...)
 	if err != nil {
 		logger.Panicf("This is a compile time bug only, the proto structures are somehow invalid: %s", err)

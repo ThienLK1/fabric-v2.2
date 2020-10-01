@@ -20,6 +20,7 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/kvledger/bookkeeping"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/statecouchdb"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/statemongodb"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/stateleveldb"
 	"github.com/hyperledger/fabric/core/ledger/util"
 	"github.com/pkg/errors"
@@ -31,7 +32,8 @@ const (
 	nsJoiner       = "$$"
 	pvtDataPrefix  = "p"
 	hashDataPrefix = "h"
-	couchDB        = "CouchDB"
+	couchDB        = "couchdb"
+	mongoDB        = "mongodb"
 )
 
 // StateDBConfig encapsulates the configuration for stateDB on the ledger.
@@ -63,9 +65,14 @@ func NewDBProvider(
 
 	var vdbProvider statedb.VersionedDBProvider
 	var err error
+	logger.Debugf("constructing NewDBProvider stateDBConf %s",stateDBConf.MongoDB)
 
 	if stateDBConf != nil && stateDBConf.StateDatabase == couchDB {
 		if vdbProvider, err = statecouchdb.NewVersionedDBProvider(stateDBConf.CouchDB, metricsProvider, sysNamespaces); err != nil {
+			return nil, err
+		}
+	} else if stateDBConf != nil && stateDBConf.StateDatabase == mongoDB {
+		if vdbProvider, err = statemongodb.NewVersionedDBProvider(stateDBConf.MongoDB, metricsProvider, sysNamespaces); err != nil {
 			return nil, err
 		}
 	} else {
@@ -76,7 +83,7 @@ func NewDBProvider(
 
 	dbProvider := &DBProvider{vdbProvider, healthCheckRegistry, bookkeeperProvider}
 
-	err = dbProvider.RegisterHealthChecker()
+	err = dbProvider.RegisterHealthChecker(stateDBConf.StateDatabase)
 	if err != nil {
 		return nil, err
 	}
@@ -87,9 +94,13 @@ func NewDBProvider(
 // RegisterHealthChecker registers the underlying stateDB with the healthChecker.
 // For now, we register only the CouchDB as it runs as a separate process but not
 // for the GoLevelDB as it is an embedded database.
-func (p *DBProvider) RegisterHealthChecker() error {
+func (p *DBProvider) RegisterHealthChecker(stateDatabase string) error {
 	if healthChecker, ok := p.VersionedDBProvider.(healthz.HealthChecker); ok {
-		return p.HealthCheckRegistry.RegisterChecker("couchdb", healthChecker)
+		if stateDatabase == couchDB {
+			return p.HealthCheckRegistry.RegisterChecker("couchdb", healthChecker)
+		} else if stateDatabase == mongoDB {
+			return p.HealthCheckRegistry.RegisterChecker("mongodb", healthChecker)
+		}
 	}
 	return nil
 }
@@ -252,6 +263,7 @@ func (s *DB) ApplyPrivacyAwareUpdates(updates *UpdateBatch, height *version.Heig
 	addPvtUpdates(combinedUpdates, updates.PvtUpdates)
 	addHashedUpdates(combinedUpdates, updates.HashUpdates, !s.BytesKeySupported())
 	s.metadataHint.setMetadataUsedFlag(updates)
+	logger.Debugf("ApplyPrivacyAwareUpdates %s",s.VersionedDB)
 	return s.VersionedDB.ApplyUpdates(combinedUpdates.UpdateBatch, height)
 }
 
@@ -297,7 +309,7 @@ func (s *DB) HandleChaincodeDeploy(chaincodeDefinition *cceventmgmt.ChaincodeDef
 		return nil
 	}
 	if chaincodeDefinition == nil {
-		return errors.New("chaincode definition not found while creating couchdb index")
+		return errors.New("chaincode definition not found while creating statedb index")
 	}
 	dbArtifacts, err := ccprovider.ExtractFileEntries(dbArtifactsTar, indexCapable.GetDBType())
 	if err != nil {
@@ -341,7 +353,7 @@ func (s *DB) HandleChaincodeDeploy(chaincodeDefinition *cceventmgmt.ChaincodeDef
 	return nil
 }
 
-// ChaincodeDeployDone is a noop for couchdb state impl
+// ChaincodeDeployDone is a noop for statedb state impl
 func (s *DB) ChaincodeDeployDone(succeeded bool) {
 	// NOOP
 }
@@ -409,9 +421,11 @@ type indexInfo struct {
 const (
 	// Example for chaincode indexes:
 	// "META-INF/statedb/couchdb/indexes/indexColorSortName.json"
+	// "META-INF/statedb/mongodb/indexes/indexColorSortName.json"
 	chaincodeIndexDirDepth = 3
 	// Example for collection scoped indexes:
 	// "META-INF/statedb/couchdb/collections/collectionMarbles/indexes/indexCollMarbles.json"
+	// "META-INF/statedb/mongodb/collections/collectionMarbles/indexes/indexCollMarbles.json"
 	collectionDirDepth      = 3
 	collectionNameDepth     = 4
 	collectionIndexDirDepth = 5
@@ -449,7 +463,7 @@ type namespaceProvider struct {
 // created only if the peer is a member of the collection or owns the implicit collection. However, this function
 // adopts a simple implementation that always adds private data namespace for a collection without checking
 // peer membership/ownership. As a result, it returns a superset of namespaces that may be created.
-// However, it will not cause any inconsistent issue because the caller in statecouchdb will check if any
+// However, it will not cause any inconsistent issue because the caller in statedb will check if any
 // existing database matches the namespace and filter out all extra namespaces if no databases match them.
 // Checking peer membership is complicated because it requires retrieving all the collection configs from
 // the collection config store. Because this is a temporary function needed to retroactively build namespaces
