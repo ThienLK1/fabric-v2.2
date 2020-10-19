@@ -20,8 +20,8 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/kvledger/bookkeeping"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/statecouchdb"
-	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/statemongodb"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/stateleveldb"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/statemongodb"
 	"github.com/hyperledger/fabric/core/ledger/util"
 	"github.com/pkg/errors"
 )
@@ -65,7 +65,8 @@ func NewDBProvider(
 
 	var vdbProvider statedb.VersionedDBProvider
 	var err error
-	logger.Debugf("constructing NewDBProvider stateDBConf %s",stateDBConf.MongoDB)
+	logger.Debugf("****StateDB****: %s", stateDBConf.StateDatabase)
+	//logger.Debugf("constructing NewDBProvider stateDBConf %s",stateDBConf.MongoDB)
 
 	if stateDBConf != nil && stateDBConf.StateDatabase == couchDB {
 		if vdbProvider, err = statecouchdb.NewVersionedDBProvider(stateDBConf.CouchDB, metricsProvider, sysNamespaces); err != nil {
@@ -204,6 +205,7 @@ func (s *DB) GetPrivateDataHash(namespace, collection, key string) (*statedb.Ver
 
 // GetPrivateDataHash gets the value hash of a private data item identified by a tuple <namespace, collection, keyHash>
 func (s *DB) GetValueHash(namespace, collection string, keyHash []byte) (*statedb.VersionedValue, error) {
+	logger.Debugf("GetValueHash")
 	keyHashStr := string(keyHash)
 	if !s.BytesKeySupported() {
 		keyHashStr = base64.StdEncoding.EncodeToString(keyHash)
@@ -263,7 +265,7 @@ func (s *DB) ApplyPrivacyAwareUpdates(updates *UpdateBatch, height *version.Heig
 	addPvtUpdates(combinedUpdates, updates.PvtUpdates)
 	addHashedUpdates(combinedUpdates, updates.HashUpdates, !s.BytesKeySupported())
 	s.metadataHint.setMetadataUsedFlag(updates)
-	logger.Debugf("ApplyPrivacyAwareUpdates %s",s.VersionedDB)
+	logger.Debugf("ApplyPrivacyAwareUpdates %s", s.VersionedDB)
 	return s.VersionedDB.ApplyUpdates(combinedUpdates.UpdateBatch, height)
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/pkg/errors"
+	//"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -40,7 +41,7 @@ type DBOperationResponse struct {
 //mongoDoc defines the structure for a JSON document value
 type mongoDoc struct {
 	jsonValue   []byte
-	binaryDatas []*binaryDataInfo
+	binaryDatas []*BinaryDataInfo
 }
 
 func (d *mongoDoc) key() (string, error) {
@@ -51,10 +52,10 @@ func (d *mongoDoc) key() (string, error) {
 	return m[idField].(string), nil
 }
 
-type binaryDataInfo struct {
+type BinaryDataInfo struct {
 	Name       string
 	Length     uint64
-	BinaryData []byte
+	Binarydata []byte
 }
 
 //MongoConnectionDef contains parameters
@@ -72,7 +73,7 @@ type MongoConnectionDef struct {
 //mongoInstance represents a MongoDB instance
 type mongoInstance struct {
 	conf   *ledger.MongoDBConfig //connection configuration
-	client *mongo.Client       // a client to connect to this instance
+	client *mongo.Client         // a client to connect to this instance
 	stats  *stats
 }
 
@@ -101,32 +102,32 @@ type DBInfo struct {
 }
 
 // docMetadata is used for capturing MongoDB document header info,
-// used to capture id, version, rev and binarydata returned in the query from MongoDB
+// used to capture id, version, rev and binarydatas returned in the query from MongoDB
 type docMetadata struct {
 	ID          string            `bson:"_id"`
 	Rev         int               `bson:"_rev"`
 	Version     string            `bson:"~version"`
-	binaryDatas []*binaryDataInfo `bson:"_binaryData"`
+	BinaryDatas []*BinaryDataInfo `bson:"_binaryData"`
 }
 
 type docMetadataJSON struct {
-	ID          string            `json:"_id"`
-	Version     string            `json:"~version"`
+	ID      string `json:"_id"`
+	Version string `json:"~version"`
 }
 
 //batchUpdateResponse defines a structure for batch update response
 type batchUpdateResponse struct {
-	ID     string `json:"id"`
-	Error  string `json:"error"`
-	Reason string `json:"reason"`
-	Ok     bool   `json:"ok"`
-	Rev    string `json:"rev"`
+	ID     string `bson:"_id"`
+	Error  string `bson:"error"`
+	Reason string `bson:"reason"`
+	Ok     bool   `bson:"ok"`
+	Rev    int    `bson:"_rev"`
 }
 
 type queryResult struct {
 	id          string `bson:"_id"`
 	value       []byte
-	binaryDatas []*binaryDataInfo `bson:"_binaryData"`
+	binaryDatas []*BinaryDataInfo `bson:"_binaryData"`
 }
 
 type RangeQueryResponse struct {
@@ -159,12 +160,12 @@ type MongoQuery struct {
 }
 
 //attachmentInfo contains the definition for an attached file for mongodb
-type attachmentInfo struct {
-	Name            string
-	ContentType     string `json:"content_type"`
-	Length          uint64
-	AttachmentBytes []byte `json:"data"`
-}
+//type attachmentInfo struct {
+//	Name            string
+//	ContentType     string `json:"content_type"`
+//	Length          uint64
+//	AttachmentBytes []byte `json:"data"`
+//}
 
 //Paging info used for paging query
 //The result of query will not change with same query conditions(even updated data)
@@ -221,6 +222,7 @@ func (mongoInstance *mongoInstance) healthCheck(ctx context.Context) error {
 	}
 	return nil
 }
+
 // internalQueryLimit returns the maximum number of records to return internally
 // when querying MongoDB.
 func (mongoInstance *mongoInstance) queryLimit() int32 {
@@ -286,7 +288,6 @@ func (dbclient *mongoDatabase) DropCollection() error {
 //from the database by id
 func (dbclient *mongoDatabase) readDoc(id string) (*mongoDoc, string, error) {
 	var mongoDoc mongoDoc
-	var docMetadata *docMetadata
 	var revision string
 
 	dbName := dbclient.DatabaseName
@@ -297,6 +298,7 @@ func (dbclient *mongoDatabase) readDoc(id string) (*mongoDoc, string, error) {
 	client.Connect(ctx)
 	logger.Debugf("Database Name : [%s] Collection Name : [%s] Entering readDoc()  id=[%s]", dbName, colName, id)
 	if !utf8.ValidString(id) {
+		logger.Error("doc id [%x] not a valid utf8 string", id)
 		return nil, "", errors.Errorf("doc id [%x] not a valid utf8 string", id)
 	}
 
@@ -310,8 +312,10 @@ func (dbclient *mongoDatabase) readDoc(id string) (*mongoDoc, string, error) {
 
 		return nil, "", res.Err()
 	}
-
-	err := res.Decode(&docMetadata)
+	var doc = bson.M{}
+	_ = res.Decode(&doc)
+	var docMetadata = &docMetadata{}
+	err := res.Decode(docMetadata)
 	if err != nil {
 		if strings.Contains(err.Error(), "no documents in result") {
 			logger.Debugf("Database Name : [%s] Collection Name : [%s] Document not found", dbclient.DatabaseName, dbclient.CollectionName)
@@ -326,13 +330,13 @@ func (dbclient *mongoDatabase) readDoc(id string) (*mongoDoc, string, error) {
 		return nil, "", res.Err()
 	}
 
-	if docMetadata.binaryDatas != nil {
-		for _, binaryDataInfoVal := range docMetadata.binaryDatas {
-			name := binaryDataInfoVal.Name
-			length := binaryDataInfoVal.Length
-			binaryData := binaryDataInfoVal.BinaryData
-			binaryDataInfoVal := binaryDataInfo{Name: name, Length: length, BinaryData: binaryData}
-			mongoDoc.binaryDatas = append(mongoDoc.binaryDatas, &binaryDataInfoVal)
+	if docMetadata.BinaryDatas != nil {
+		for _, BinaryDataInfoVal := range docMetadata.BinaryDatas {
+			name := BinaryDataInfoVal.Name
+			length := BinaryDataInfoVal.Length
+			binaryData := BinaryDataInfoVal.Binarydata
+			BinaryDataInfoVal := BinaryDataInfo{Name: name, Length: length, Binarydata: binaryData}
+			mongoDoc.binaryDatas = append(mongoDoc.binaryDatas, &BinaryDataInfoVal)
 		}
 	}
 
@@ -364,24 +368,24 @@ func (dbclient *mongoDatabase) readDoc(id string) (*mongoDoc, string, error) {
 
 	data, err := json.Marshal(jsonValue)
 	if err != nil {
+		logger.Errorf("error marshalling json data")
 		return nil, "", errors.Wrap(err, "error marshalling json data")
 	}
 	mongoDoc.jsonValue = data
-
 	logger.Debugf("Database Name : [%s] Collection Name : [%s] Exiting readDoc()", dbName, colName)
 	return &mongoDoc, revision, nil
 }
 
-func encodeForJSON(str string) (string, error) {
-	buf := &bytes.Buffer{}
-	encoder := json.NewEncoder(buf)
-	if err := encoder.Encode(str); err != nil {
-		return "", errors.Wrap(err, "error encoding json data")
-	}
-	// Encode adds double quotes to string and terminates with \n - stripping them as bytes as they are all ascii(0-127)
-	buffer := buf.Bytes()
-	return string(buffer[1 : len(buffer)-2]), nil
-}
+//func encodeForJSON(str string) (string, error) {
+//	buf := &bytes.Buffer{}
+//	encoder := json.NewEncoder(buf)
+//	if err := encoder.Encode(str); err != nil {
+//		return "", errors.Wrap(err, "error encoding json data")
+//	}
+//	// Encode adds double quotes to string and terminates with \n - stripping them as bytes as they are all ascii(0-127)
+//	buffer := buf.Bytes()
+//	return string(buffer[1 : len(buffer)-2]), nil
+//}
 
 func encodePathElement(str string) string {
 
@@ -457,7 +461,6 @@ func (dbclient *mongoDatabase) saveDoc(id string, rev string, mongoDoc *mongoDoc
 	dbName := dbclient.DatabaseName
 	colName := dbclient.CollectionName
 	defer dbclient.mongoInstance.recordMetric(time.Now(), colName, "saveDoc")
-	logger.Debugf("Database Name : [%s] Collection Name : [%s] Entering saveDoc() id=[%s]", dbName, colName, id)
 
 	if !utf8.ValidString(id) {
 		return "", errors.Errorf("doc id [%x] not a valid utf8 string", id)
@@ -482,7 +485,6 @@ func (dbclient *mongoDatabase) saveDoc(id string, rev string, mongoDoc *mongoDoc
 		}
 
 	} else { // there are binaryDatas
-
 		binaryDataJSONMap[binaryField] = mongoDoc.binaryDatas
 
 		if mongoDoc.jsonValue != nil {
@@ -497,7 +499,6 @@ func (dbclient *mongoDatabase) saveDoc(id string, rev string, mongoDoc *mongoDoc
 				binaryDataJSONMap[jsonKey] = jsonValue
 			}
 		}
-
 	}
 
 	client := dbclient.mongoInstance.client
@@ -568,8 +569,11 @@ func (dbclient *mongoDatabase) batchRetrieveDocumentMetadata(keys []string) ([]*
 	//keymap := make(map[string]interface{})
 	//keymap["keys"] = keys
 
-	cursor, _ := client.Database(dbName).Collection(colName, nil).Find(ctx, bson.D{{idField, bson.D{{"$in", keys}}}})
-
+	cursor, err := client.Database(dbName).Collection(colName, nil).Find(ctx, bson.D{{idField, bson.D{{"$in", keys}}}})
+	if err != nil {
+		logger.Errorf("batchRetrieveDocumentMetadata() Find() err: %s", err.Error())
+		return nil, err
+	}
 	docMetadataArray := []*docMetadata{}
 
 	//for _, row := range jsonResponse.Rows {
@@ -577,13 +581,13 @@ func (dbclient *mongoDatabase) batchRetrieveDocumentMetadata(keys []string) ([]*
 	//	docMetadataArray = append(docMetadataArray, docMetadata)
 	//}
 
-	for cursor.Next(context.TODO()) {
+	for cursor.Next(ctx) {
 		var docMetadata = &docMetadata{}
 		err := cursor.Decode(docMetadata)
 		if err != nil {
-
+			logger.Errorf("batchRetrieveDocumentMetadata() err: %s", err.Error())
+			return nil, err
 		}
-
 		docMetadataArray = append(docMetadataArray, docMetadata)
 	}
 
@@ -595,7 +599,6 @@ func (dbclient *mongoDatabase) batchRetrieveDocumentMetadata(keys []string) ([]*
 
 //batchUpdateDocuments - batch method to batch update documents
 func (dbclient *mongoDatabase) batchUpdateDocuments(documents []*mongoDoc) ([]*batchUpdateResponse, error) {
-	logger.Debugf("batchUpdateDocuments =[%v]", documents)
 	dbName := dbclient.DatabaseName
 	colName := dbclient.CollectionName
 	client := dbclient.mongoInstance.client
@@ -603,7 +606,7 @@ func (dbclient *mongoDatabase) batchUpdateDocuments(documents []*mongoDoc) ([]*b
 	client.Connect(ctx)
 
 	if logger.IsEnabledFor(zapcore.DebugLevel) {
-		
+
 		documentIdsString, err := printDocumentIds(documents)
 		if err == nil {
 			logger.Debugf("Database Name : [%s] Collection Name : [%s] Entering batchUpdateDocuments()  document ids=[%s]", dbName, colName, documentIdsString)
@@ -625,7 +628,6 @@ func (dbclient *mongoDatabase) batchUpdateDocuments(documents []*mongoDoc) ([]*b
 		if err != nil {
 			return nil, errors.Wrap(err, "error unmarshalling json data")
 		}
-
 		id := document[idField]
 		delete(document, revField)
 		deleted := document[deletedField]
@@ -651,7 +653,7 @@ func (dbclient *mongoDatabase) batchUpdateDocuments(documents []*mongoDoc) ([]*b
 
 	}
 
-	var response []*batchUpdateResponse
+	var response = []*batchUpdateResponse{}
 	var raw []string
 	for _, sr := range resultMap {
 		var value = &batchUpdateResponse{}
@@ -665,7 +667,6 @@ func (dbclient *mongoDatabase) batchUpdateDocuments(documents []*mongoDoc) ([]*b
 		str := fmt.Sprintf("ID : [%s] Rev : [%d] Error : [%s] Reason : [%s]", value.ID, value.Rev, value.Error, value.Reason)
 		raw = append(raw, str)
 	}
-
 	logger.Debugf("Database Name : [%s] Collection Name : [%s] Exiting batchUpdateDocuments()  response=[\n %s \n]", dbName, colName, strings.Join(raw, "\n"))
 
 	return response, nil
@@ -673,7 +674,6 @@ func (dbclient *mongoDatabase) batchUpdateDocuments(documents []*mongoDoc) ([]*b
 
 //getDocumentRevision will return the revision if the document exists, otherwise it will return ""
 func (dbclient *mongoDatabase) getDocumentRevision(id string) string {
-
 	var rev = ""
 
 	//See if the document already exists, we need the rev for saves and deletes
@@ -694,11 +694,7 @@ func printDocumentIds(documentPointers []*mongoDoc) (string, error) {
 	for _, documentPointer := range documentPointers {
 		docMetadataTemp := &docMetadataJSON{}
 		err := json.Unmarshal(documentPointer.jsonValue, &docMetadataTemp)
-		// err := documentPointer.jsonValue.Decode(&docMetadataTemp)
-		logger.Debugf("docMetadata jsonValue =[%s]", documentPointer.jsonValue)
-		logger.Debugf("docMetadata =[%v]", docMetadataTemp)
 		if err != nil {
-			logger.Debugf("docMetadata.ID =[%s]", docMetadataTemp.ID)
 			return "", errors.Wrap(err, "error unmarshalling json data")
 		}
 		documentIds = append(documentIds, docMetadataTemp.ID)
@@ -799,8 +795,8 @@ func (dbclient *mongoDatabase) readDocRange(startKey, endKey string, limit int32
 		if err != nil {
 			return nil, "", errors.Wrap(err, "error marshalling json data")
 		}
-		var binaryDatas []*binaryDataInfo
-		for _, binaryData := range docMetaData.binaryDatas {
+		var binaryDatas []*BinaryDataInfo
+		for _, binaryData := range docMetaData.BinaryDatas {
 			binaryDatas = append(binaryDatas, binaryData)
 		}
 
@@ -927,7 +923,6 @@ func (dbclient *mongoDatabase) DropIndex(indexName string) error {
 
 	return nil
 }
-
 
 //warmIndex method provides a function for warming a single index
 // func (dbclient *mongoDatabase) warmIndex(designdoc, indexname string) error {
@@ -1058,13 +1053,11 @@ func (dbclient *mongoDatabase) queryDocuments(query string) ([]*queryResult, str
 
 		err := resultCur.Decode(&docMetadata)
 		if err != nil {
-			if err != nil {
-				if strings.Contains(err.Error(), "no documents in result") {
-					logger.Debugf("Database Name : [%s] Collection Name : [%s] Document not found", dbclient.DatabaseName, dbclient.CollectionName)
-					return nil, "", nil
-				}
-				return nil, "", err
+			if strings.Contains(err.Error(), "no documents in result") {
+				logger.Debugf("Database Name : [%s] Collection Name : [%s] Document not found", dbclient.DatabaseName, dbclient.CollectionName)
+				return nil, "", nil
 			}
+			return nil, "", err
 		}
 
 		var docMap map[string]interface{}
@@ -1074,8 +1067,8 @@ func (dbclient *mongoDatabase) queryDocuments(query string) ([]*queryResult, str
 		}
 
 		resultValue, _ := json.Marshal(docMap)
-		var binaryDatas []*binaryDataInfo
-		for _, binaryData := range docMetadata.binaryDatas {
+		var binaryDatas []*BinaryDataInfo
+		for _, binaryData := range docMetadata.BinaryDatas {
 			binaryDatas = append(binaryDatas, binaryData)
 		}
 
@@ -1142,7 +1135,7 @@ func (mongoInstance *mongoInstance) verifyMongoConfig() error {
 
 	//get the number of retries for startup
 	maxRetriesOnStartup := mongoInstance.conf.MaxRetriesOnStartup
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, _ := context.WithTimeout(context.Background(), 35*time.Second)
 	for attempts := 0; attempts <= maxRetriesOnStartup; attempts++ {
 		_ = mongoInstance.client.Connect(ctx)
 		err := mongoInstance.client.Ping(ctx, nil)
@@ -1154,11 +1147,15 @@ func (mongoInstance *mongoInstance) verifyMongoConfig() error {
 
 			//backoff, doubling the retry time for next attempt
 			waitDuration *= 2
+		} else {
+			logger.Debugf("verifyMongoConfig() Done")
+			return nil
 		}
 
 	}
 	return nil
 }
+
 // isEmpty returns false if mongoInstance contains any databases
 // (except mongodb system databases and any database name supplied in the parameter 'databasesToIgnore')
 func (mongoInstance *mongoInstance) isEmpty(databasesToIgnore []string) (bool, error) {
@@ -1182,16 +1179,16 @@ func (mongoInstance *mongoInstance) isEmpty(databasesToIgnore []string) (bool, e
 
 // retrieveApplicationDBNames returns all the application database names in the mongo instance
 func (mongoInstance *mongoInstance) retrieveApplicationDBNames() ([]string, error) {
-	
+
 	logger.Debugf("Entering retrieveApplicationDBNames()")
 	defer logger.Debugf("Exiting retrieveApplicationDBNames()")
-	
+
 	client := mongoInstance.client
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_ = client.Connect(ctx)
 
 	filter := bson.D{{}}
-	dbNames,err := client.ListDatabaseNames(ctx,filter)
+	dbNames, err := client.ListDatabaseNames(ctx, filter)
 	if err != nil {
 		return nil, errors.WithMessage(err, "can't get list Database name")
 	}

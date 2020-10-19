@@ -222,16 +222,16 @@ $(BUILD_DIR)/images/peer/$(DUMMY):    BUILD_ARGS=--build-arg GO_TAGS=${GO_TAGS}
 $(BUILD_DIR)/images/orderer/$(DUMMY): BUILD_ARGS=--build-arg GO_TAGS=${GO_TAGS}
 
 $(BUILD_DIR)/images/%/$(DUMMY):
-	@echo "Building Docker image $(DOCKER_NS)/fabric-$*"
+	@echo "Building Docker image $(DOCKER_NS_CUSTOM)/fabric-$*"
 	@mkdir -p $(@D)
 	$(DBUILD) -f images/$*/Dockerfile \
 		--build-arg GO_VER=$(GO_VER) \
 		--build-arg ALPINE_VER=$(ALPINE_VER) \
 		$(BUILD_ARGS) \
-		-t $(DOCKER_NS)/fabric-$* ./$(BUILD_CONTEXT)
-	docker tag $(DOCKER_NS)/fabric-$* $(DOCKER_NS)/fabric-$*:$(BASE_VERSION)
-	docker tag $(DOCKER_NS)/fabric-$* $(DOCKER_NS)/fabric-$*:$(TWO_DIGIT_VERSION)
-	docker tag $(DOCKER_NS)/fabric-$* $(DOCKER_NS)/fabric-$*:$(DOCKER_TAG)
+		-t $(DOCKER_NS_CUSTOM)/fabric-$* ./$(BUILD_CONTEXT)
+	docker tag $(DOCKER_NS_CUSTOM)/fabric-$* $(DOCKER_NS_CUSTOM)/fabric-$*:$(BASE_VERSION)
+	docker tag $(DOCKER_NS_CUSTOM)/fabric-$* $(DOCKER_NS_CUSTOM)/fabric-$*:$(TWO_DIGIT_VERSION)
+	docker tag $(DOCKER_NS_CUSTOM)/fabric-$* $(DOCKER_NS_CUSTOM)/fabric-$*:$(DOCKER_TAG)
 	@touch $@
 
 # builds release packages for the host platform
@@ -268,12 +268,12 @@ dist/%: release/%
 .PHONY: docker-list
 docker-list: $(RELEASE_IMAGES:%=%-docker-list)
 %-docker-list:
-	@echo $(DOCKER_NS)/fabric-$*:$(DOCKER_TAG)
+	@echo $(DOCKER_NS_CUSTOM)/fabric-$*:$(DOCKER_TAG)
 
 .PHONY: docker-clean
 docker-clean: $(RELEASE_IMAGES:%=%-docker-clean)
 %-docker-clean:
-	-@for image in "$$(docker images --quiet --filter=reference='$(DOCKER_NS)/fabric-$*:$(DOCKER_TAG)')"; do \
+	-@for image in "$$(docker images --quiet --filter=reference='$(DOCKER_NS_CUSTOM)/fabric-$*:$(DOCKER_TAG)')"; do \
 		[ -z "$$image" ] || docker rmi -f $$image; \
 	done
 	-@rm -rf $(BUILD_DIR)/images/$* || true
@@ -281,18 +281,18 @@ docker-clean: $(RELEASE_IMAGES:%=%-docker-clean)
 .PHONY: docker-tag-latest
 docker-tag-latest: $(RELEASE_IMAGES:%=%-docker-tag-latest)
 %-docker-tag-latest:
-	docker tag $(DOCKER_NS)/fabric-$*:$(DOCKER_TAG) $(DOCKER_NS)/fabric-$*:latest
+	docker tag $(DOCKER_NS_CUSTOM)/fabric-$*:$(DOCKER_TAG) $(DOCKER_NS_CUSTOM)/fabric-$*:latest
 
 .PHONY: docker-tag-stable
 docker-tag-stable: $(RELEASE_IMAGES:%=%-docker-tag-stable)
 %-docker-tag-stable:
-	docker tag $(DOCKER_NS)/fabric-$*:$(DOCKER_TAG) $(DOCKER_NS)/fabric-$*:stable
+	docker tag $(DOCKER_NS_CUSTOM)/fabric-$*:$(DOCKER_TAG) $(DOCKER_NS_CUSTOM)/fabric-$*:stable
 
 .PHONY: publish-images
 publish-images: $(RELEASE_IMAGES:%=%-publish-images)
 %-publish-images:
 	@docker login $(DOCKER_HUB_USERNAME) $(DOCKER_HUB_PASSWORD)
-	@docker push $(DOCKER_NS)/fabric-$*:$(PROJECT_VERSION)
+	@docker push $(DOCKER_NS_CUSTOM)/fabric-$*:$(PROJECT_VERSION)
 
 .PHONY: clean
 clean: docker-clean unit-test-clean release-clean

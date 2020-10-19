@@ -7,17 +7,21 @@ SPDX-License-Identifier: Apache-2.0
 package node
 
 import (
-	"path/filepath"
-	"regexp"
-	"strings"
+	"github.com/hyperledger/fabric/common/flogging"
 	coreconfig "github.com/hyperledger/fabric/core/config"
 	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/spf13/viper"
+	"path/filepath"
+	"regexp"
+	"strings"
 )
+
 const (
-	couchDB        = "couchdb"
-	mongoDB        = "mongodb"
+	couchDB = "couchdb"
+	mongoDB = "mongodb"
 )
+
+var configLogger = flogging.MustGetLogger("configLogger")
 
 // escapeUpperCase replaces every upper case letter with a '$' and the respective
 // lower-case letter
@@ -35,7 +39,7 @@ func ledgerConfig() *ledger.Config {
 	maxBatchUpdateSize := 500
 	collElgProcMaxDbBatchSize := 5000
 	collElgProcDbBatchesInterval := 1000
-	if couchDB == stateDB{
+	if couchDB == stateDB {
 		if viper.IsSet("ledger.state.couchDBConfig.warmIndexesAfterNBlocks") {
 			warmAfterNBlocks = viper.GetInt("ledger.state.couchDBConfig.warmIndexesAfterNBlocks")
 		}
@@ -45,7 +49,7 @@ func ledgerConfig() *ledger.Config {
 		if viper.IsSet("ledger.state.couchDBConfig.maxBatchUpdateSize") {
 			maxBatchUpdateSize = viper.GetInt("ledger.state.couchDBConfig.maxBatchUpdateSize")
 		}
-	}else if mongoDB == stateDB{
+	} else if mongoDB == stateDB {
 		if viper.IsSet("ledger.state.mongoDBConfig.warmIndexesAfterNBlocks") {
 			warmAfterNBlocks = viper.GetInt("ledger.state.mongoDBConfig.warmIndexesAfterNBlocks")
 		}
@@ -103,19 +107,23 @@ func ledgerConfig() *ledger.Config {
 		}
 	} else if conf.StateDBConfig.StateDatabase == mongoDB {
 		conf.StateDBConfig.MongoDB = &ledger.MongoDBConfig{
-			Address:                 viper.GetString("ledger.state.mongoDBConfig.mongoDBAddress"),
-			Username:                viper.GetString("ledger.state.mongoDBConfig.username"),
-			DatabaseName:			 "statedb",
-			Password:                viper.GetString("ledger.state.mongoDBConfig.password"),
-			MaxRetries:              viper.GetInt("ledger.state.mongoDBConfig.maxRetries"),
-			MaxRetriesOnStartup:     viper.GetInt("ledger.state.mongoDBConfig.maxRetriesOnStartup"),
-			RequestTimeout:          viper.GetDuration("ledger.state.mongoDBConfig.requestTimeout"),
-			QueryLimit:				 internalQueryLimit,
+			Address:      viper.GetString("ledger.state.mongoDBConfig.mongoDBAddress"),
+			Username:     viper.GetString("ledger.state.mongoDBConfig.username"),
+			DatabaseName: "statemongodb",
+			Password:     viper.GetString("ledger.state.mongoDBConfig.password"),
+			//MaxRetries:              viper.GetInt("ledger.state.mongoDBConfig.maxRetries"),
+			//MaxRetriesOnStartup:     viper.GetInt("ledger.state.mongoDBConfig.maxRetriesOnStartup"),
+			//RequestTimeout:          viper.GetDuration("ledger.state.mongoDBConfig.requestTimeout"),
+			MaxRetries:              3,
+			MaxRetriesOnStartup:     3,
+			RequestTimeout:          35000000000,
+			QueryLimit:              internalQueryLimit,
 			MaxBatchUpdateSize:      maxBatchUpdateSize,
 			WarmIndexesAfterNBlocks: warmAfterNBlocks,
 			RedoLogPath:             filepath.Join(rootFSPath, "mongoRedoLogs"),
 			UserCacheSizeMBs:        viper.GetInt("ledger.state.mongoDBConfig.cacheSize"),
 		}
+		configLogger.Debugf("conf.StateDBConfig.MongoDB %v", conf.StateDBConfig.MongoDB)
 	}
 	return conf
 }

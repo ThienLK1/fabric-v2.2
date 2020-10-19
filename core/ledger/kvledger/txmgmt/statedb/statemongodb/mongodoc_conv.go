@@ -10,9 +10,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
-	"regexp"
 
 	"github.com/hyperledger/fabric/core/ledger/internal/version"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb"
@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	binaryField  = "_binaryData"
+	binaryField   = "_binaryData"
 	binaryWrapper = "valueBytes"
 	idField       = "_id"
 	revField      = "_rev"
@@ -101,7 +101,6 @@ func validateAndRetrieveFields(doc *mongoDoc) (*mongoDocFields, error) {
 	if err := decoder.Decode(&jsonDoc); err != nil {
 		return nil, err
 	}
-
 	docFields := &mongoDocFields{}
 	docFields.id = jsonDoc[idField].(string)
 	if jsonDoc[revField] != nil {
@@ -111,7 +110,6 @@ func validateAndRetrieveFields(doc *mongoDoc) (*mongoDocFields, error) {
 		return nil, fmt.Errorf("version field %s was not found", versionField)
 	}
 	docFields.versionAndMetadata = jsonDoc[versionField].(string)
-
 	delete(jsonDoc, idField)
 	delete(jsonDoc, revField)
 	delete(jsonDoc, versionField)
@@ -123,9 +121,24 @@ func validateAndRetrieveFields(doc *mongoDoc) (*mongoDocFields, error) {
 	}
 	for _, binaryData := range doc.binaryDatas {
 		if binaryData.Name == binaryWrapper {
-			docFields.value = binaryData.BinaryData
+			docFields.value = binaryData.Binarydata
 		}
 	}
+	// handle binary or json data
+	if doc.binaryDatas != nil { // binary attachment
+		// get binary data from attachment
+		for _, attachment := range doc.binaryDatas {
+			if attachment.Name == binaryField {
+				docFields.value = attachment.Binarydata
+			}
+		}
+	} else {
+		// marshal the returned JSON data.
+		if docFields.value, err = json.Marshal(jsonDoc); err != nil {
+			return nil, err
+		}
+	}
+	logger.Debugf("validateAndRetrieveFields docFields after : %+v", docFields)
 	return docFields, err
 }
 
@@ -181,10 +194,10 @@ func keyValToMongoDoc(kv *keyValue) (*mongoDoc, error) {
 	mongoDoc := &mongoDoc{jsonValue: jsonBytes}
 
 	if kvtype == kvTypeBinaryData {
-		binaryData := &binaryDataInfo{}
-		binaryData.BinaryData = value
+		binaryData := &BinaryDataInfo{}
+		binaryData.Binarydata = value
 		binaryData.Name = binaryField
-		binaryDatas := append([]*binaryDataInfo{}, binaryData)
+		binaryDatas := append([]*BinaryDataInfo{}, binaryData)
 		mongoDoc.binaryDatas = binaryDatas
 	}
 	return mongoDoc, nil
@@ -277,7 +290,7 @@ func decodeDataformatInfo(mongoDoc *mongoDoc) (string, error) {
 		logger.Errorf("%+v", err)
 		return "", err
 	}
-	version := regexp.MustCompile(`^"(.*)"$`).ReplaceAllString(dataformatInfo.Version ,`$1`)
+	version := regexp.MustCompile(`^"(.*)"$`).ReplaceAllString(dataformatInfo.Version, `$1`)
 	return version, nil
 }
 

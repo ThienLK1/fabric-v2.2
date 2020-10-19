@@ -517,7 +517,7 @@ func (dbclient *couchDatabase) dropDatabase() (*dbOperationResponse, error) {
 func (dbclient *couchDatabase) saveDoc(id string, rev string, couchDoc *couchDoc) (string, error) {
 	dbName := dbclient.dbName
 
-	couchdbLogger.Debugf("[%s] Entering SaveDoc() id=[%s]", dbName, id)
+	couchdbLogger.Debugf("[%s] Entering SaveDoc() id=[%s] couchDoc: %+v", dbName, id, couchDoc)
 
 	if !utf8.ValidString(id) {
 		return "", errors.Errorf("doc id [%x] not a valid utf8 string", id)
@@ -540,7 +540,7 @@ func (dbclient *couchDatabase) saveDoc(id string, rev string, couchDoc *couchDoc
 
 	//check to see if attachments is nil, if so, then this is a JSON only
 	if couchDoc.attachments == nil {
-
+		logger.Debugf("saveDoc() id: %s couchDoc.attachments == nil", id)
 		//Test to see if this is a valid JSON
 		if !isJSON(string(couchDoc.jsonValue)) {
 			return "", errors.New("JSON format is not valid")
@@ -548,8 +548,9 @@ func (dbclient *couchDatabase) saveDoc(id string, rev string, couchDoc *couchDoc
 
 		// if there are no attachments, then use the bytes passed in as the JSON
 		data = couchDoc.jsonValue
-
+		logger.Debugf("saveDoc() data: %+v", data)
 	} else { // there are attachments
+		logger.Debugf("saveDoc() id: %s couchDoc.attachments != nil", id)
 
 		//attachments are included, create the multipart definition
 		multipartData, multipartBoundary, err3 := createAttachmentPart(couchDoc)
@@ -566,7 +567,7 @@ func (dbclient *couchDatabase) saveDoc(id string, rev string, couchDoc *couchDoc
 
 		//Set the data buffer to the data from the create multi-part data
 		data = multipartData.Bytes()
-
+		logger.Debugf("saveDoc() data: %+v", data)
 		//Set the default boundary to the value generated in the multipart creation
 		defaultBoundary = multipartBoundary
 
@@ -574,7 +575,7 @@ func (dbclient *couchDatabase) saveDoc(id string, rev string, couchDoc *couchDoc
 
 	//get the number of retries
 	maxRetries := dbclient.couchInstance.conf.MaxRetries
-
+	//couchdbLogger.Debugf("[SaveDoc() id:[%s]  rev=[%s]",id, rev)
 	//handle the request for saving document with a retry if there is a revision conflict
 	resp, _, err := dbclient.handleRequestWithRevisionRetry(id, http.MethodPut, dbName, "SaveDoc", saveURL, data, rev, defaultBoundary, maxRetries, keepConnectionOpen, nil)
 
@@ -589,8 +590,8 @@ func (dbclient *couchDatabase) saveDoc(id string, rev string, couchDoc *couchDoc
 		return "", err
 	}
 
-	couchdbLogger.Debugf("[%s] Exiting SaveDoc()", dbclient.dbName)
-
+	//couchdbLogger.Debugf("SaveDoc() %+v",revision)
+	couchdbLogger.Debugf("Database Name : [%s] Revision: [%s] Exiting saveDoc()", dbclient.dbName, revision)
 	return revision, nil
 
 }
@@ -599,13 +600,14 @@ func (dbclient *couchDatabase) saveDoc(id string, rev string, couchDoc *couchDoc
 func (dbclient *couchDatabase) getDocumentRevision(id string) string {
 
 	var rev = ""
-
+	logger.Debugf("getDocumentRevision")
 	//See if the document already exists, we need the rev for saves and deletes
 	_, revdoc, err := dbclient.readDoc(id)
 	if err == nil {
 		//set the revision to the rev returned from the document read
 		rev = revdoc
 	}
+	logger.Debugf("getDocumentRevision rev: %v", rev)
 	return rev
 }
 
@@ -825,7 +827,7 @@ func (dbclient *couchDatabase) readDoc(id string) (*couchDoc, string, error) {
 		} // for all multiparts
 
 		couchDoc.attachments = attachments
-
+		couchdbLogger.Debugf("return readDoc couchDoc: %+v, revision: %s, nil", couchDoc, revision)
 		return &couchDoc, revision, nil
 	}
 
@@ -835,7 +837,7 @@ func (dbclient *couchDatabase) readDoc(id string) (*couchDoc, string, error) {
 		return nil, "", errors.Wrap(err, "error reading response body")
 	}
 
-	couchdbLogger.Debugf("[%s] Exiting ReadDoc()", dbclient.dbName)
+	couchdbLogger.Debugf("[%s] Exiting ReadDoc() id: %v revision: %v", dbclient.dbName, id, revision)
 	return &couchDoc, revision, nil
 }
 
@@ -1456,11 +1458,12 @@ func (dbclient *couchDatabase) batchRetrieveDocumentMetadata(keys []string) ([]*
 	if err2 != nil {
 		return nil, errors.Wrap(err2, "error unmarshalling json data")
 	}
-
+	couchdbLogger.Debugf("BatchRetrieveDocumentMetadata() jsonResponse:%+v", jsonResponse)
 	docMetadataArray := []*docMetadata{}
 
 	for _, row := range jsonResponse.Rows {
 		docMetadata := &docMetadata{ID: row.ID, Rev: row.DocMetadata.Rev, Version: row.DocMetadata.Version}
+		couchdbLogger.Debugf("BatchRetrieveDocumentMetadata() docMetadata:%+v", docMetadata)
 		docMetadataArray = append(docMetadataArray, docMetadata)
 	}
 
@@ -1473,7 +1476,7 @@ func (dbclient *couchDatabase) batchRetrieveDocumentMetadata(keys []string) ([]*
 //batchUpdateDocuments - batch method to batch update documents
 func (dbclient *couchDatabase) batchUpdateDocuments(documents []*couchDoc) ([]*batchUpdateResponse, error) {
 	dbName := dbclient.dbName
-
+	logger.Debugf("batchUpdateDocuments =[%v]", documents)
 	if couchdbLogger.IsEnabledFor(zapcore.DebugLevel) {
 		documentIdsString, err := printDocumentIds(documents)
 		if err == nil {
@@ -1494,7 +1497,7 @@ func (dbclient *couchDatabase) batchUpdateDocuments(documents []*couchDoc) ([]*b
 	var jsonDocumentMap []interface{}
 
 	for _, jsonDocument := range documents {
-
+		couchdbLogger.Debugf("BatchUpdateDocuments() jsonDocument=[%+v]", jsonDocument)
 		//create a document map
 		var document = make(map[string]interface{})
 
@@ -1503,9 +1506,10 @@ func (dbclient *couchDatabase) batchUpdateDocuments(documents []*couchDoc) ([]*b
 		if err != nil {
 			return nil, errors.Wrap(err, "error unmarshalling json data")
 		}
-
+		couchdbLogger.Debugf("BatchUpdateDocuments() Unmarshal document: %+v", document)
 		//iterate through any attachments
 		if len(jsonDocument.attachments) > 0 {
+			couchdbLogger.Debugf("BatchUpdateDocuments() len(jsonDocument.attachments) > 0")
 
 			//create a file attachment map
 			fileAttachment := make(map[string]interface{})
@@ -1526,7 +1530,7 @@ func (dbclient *couchDatabase) batchUpdateDocuments(documents []*couchDoc) ([]*b
 		jsonDocumentMap = append(jsonDocumentMap, document)
 
 	}
-
+	couchdbLogger.Debugf("BatchUpdateDocuments() jsonDocumentMap=[%+v]", jsonDocumentMap)
 	//Add the documents to the "docs" item
 	documentMap["docs"] = jsonDocumentMap
 

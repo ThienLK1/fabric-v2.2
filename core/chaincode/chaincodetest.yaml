@@ -304,7 +304,7 @@ chaincode:
 
     golang:
         # golang will never need more than baseos
-        runtime: $(DOCKER_NS)/fabric-baseos:$(TWO_DIGIT_VERSION)
+        runtime: hyperledger/fabric-baseos:$(TWO_DIGIT_VERSION)
 
         # whether or not golang chaincode should be linked dynamically
         dynamicLink: false

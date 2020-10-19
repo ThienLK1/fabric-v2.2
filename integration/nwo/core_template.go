@@ -167,10 +167,10 @@ chaincode:
   builder: $(DOCKER_NS)/fabric-ccenv:$(PROJECT_VERSION)
   pull: false
   golang:
-    runtime: $(DOCKER_NS)/fabric-baseos:$(PROJECT_VERSION)
+    runtime: hyperledger/fabric-baseos:$(PROJECT_VERSION)
     dynamicLink: false
   car:
-    runtime: $(DOCKER_NS)/fabric-baseos:$(PROJECT_VERSION)
+    runtime: hyperledger/fabric-baseos:$(PROJECT_VERSION)
   java:
     runtime: $(DOCKER_NS)/fabric-javaenv:latest
   node:
