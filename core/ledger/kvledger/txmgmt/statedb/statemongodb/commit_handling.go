@@ -186,7 +186,6 @@ func (c *committer) commitUpdates() error {
 	// IF INDIVIDUAL DOCUMENTS IN THE BULK UPDATE DID NOT SUCCEED, TRY THEM INDIVIDUALLY
 	// iterate through the response from MongoDB by document
 	for _, resp := range responses {
-		logger.Debugf("commitUpdates resp.Error :%s", resp.Error)
 		// If the document returned an error, retry the individual document
 		if resp.Error != "" || resp.ID == "" {
 			rev := string(resp.Rev)

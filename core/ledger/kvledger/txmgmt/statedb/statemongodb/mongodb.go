@@ -55,7 +55,7 @@ func (d *mongoDoc) key() (string, error) {
 type BinaryDataInfo struct {
 	Name       string
 	Length     uint64
-	Binarydata []byte
+	Binarydata []byte `bson:"Binarydata"`
 }
 
 //MongoConnectionDef contains parameters
@@ -357,7 +357,11 @@ func (dbclient *mongoDatabase) readDoc(id string) (*mongoDoc, string, error) {
 				jsonValue[key] = int64(value.Value().Int32())
 			}
 		} else {
-			jsonValue[key] = value.Value().String()
+			if _, ok := value.Value().StringValueOK(); ok {
+				jsonValue[key] = value.Value().StringValue()
+			} else {
+				jsonValue[key] = value.Value().String()
+			}
 		}
 	}
 
@@ -373,6 +377,8 @@ func (dbclient *mongoDatabase) readDoc(id string) (*mongoDoc, string, error) {
 	}
 	mongoDoc.jsonValue = data
 	logger.Debugf("Database Name : [%s] Collection Name : [%s] Exiting readDoc()", dbName, colName)
+	logger.Debugf("jsonValue : %+v", jsonValue)
+	logger.Debugf("mongoDoc : %s", string(mongoDoc.jsonValue))
 	return &mongoDoc, revision, nil
 }
 

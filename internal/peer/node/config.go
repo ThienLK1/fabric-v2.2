@@ -116,7 +116,7 @@ func ledgerConfig() *ledger.Config {
 			//RequestTimeout:          viper.GetDuration("ledger.state.mongoDBConfig.requestTimeout"),
 			MaxRetries:              3,
 			MaxRetriesOnStartup:     3,
-			RequestTimeout:          35000000000,
+			RequestTimeout:          350000000000,
 			QueryLimit:              internalQueryLimit,
 			MaxBatchUpdateSize:      maxBatchUpdateSize,
 			WarmIndexesAfterNBlocks: warmAfterNBlocks,

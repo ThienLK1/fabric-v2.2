@@ -25,17 +25,19 @@ type fileValidator func(fileName string, fileBytes []byte) error
 // AllowedCharsCollectionName captures the regex pattern for a valid collection name
 const AllowedCharsCollectionName = "[A-Za-z0-9_-]+"
 
-// Currently, the only metadata expected and allowed is for META-INF/statedb/couchdb/indexes.
+// Currently, the only metadata expected and allowed is for META-INF/statedb/[couchdb, mongodb]/indexes.
 var fileValidators = map[*regexp.Regexp]fileValidator{
 	regexp.MustCompile("^META-INF/statedb/couchdb/indexes/.*[.]json"):                                                couchdbIndexFileValidator,
 	regexp.MustCompile("^META-INF/statedb/couchdb/collections/" + AllowedCharsCollectionName + "/indexes/.*[.]json"): couchdbIndexFileValidator,
+	regexp.MustCompile("^META-INF/statedb/mongodb/indexes/.*[.]json"):                                                mongodbIndexFileValidator,
+	regexp.MustCompile("^META-INF/statedb/mongodb/collections/" + AllowedCharsCollectionName + "/indexes/.*[.]json"): mongodbIndexFileValidator,
 }
 
 var collectionNameValid = regexp.MustCompile("^" + AllowedCharsCollectionName)
 
 var fileNameValid = regexp.MustCompile("^.*[.]json")
 
-var validDatabases = []string{"couchdb"}
+var validDatabases = []string{"couchdb", "mongodb"}
 
 // UnhandledDirectoryError is returned for metadata files in unhandled directories
 type UnhandledDirectoryError struct {
@@ -77,7 +79,7 @@ func ValidateMetadataFile(filePathName string, fileBytes []byte) error {
 }
 
 func buildMetadataFileErrorMessage(filePathName string) string {
-
+	logger.Debugf("buildMetadataFileErrorMessage")
 	dir, filename := filepath.Split(filePathName)
 
 	if !strings.HasPrefix(filePathName, "META-INF/statedb") {
@@ -89,8 +91,9 @@ func buildMetadataFileErrorMessage(filePathName string) string {
 		return fmt.Sprintf("metadata file path must include a database and index directory: %s", dir)
 	}
 	// validate the database type
+	logger.Debugf("validDatabases: %s", validDatabases)
 	if !contains(validDatabases, directoryArray[2]) {
-		return fmt.Sprintf("database name [%s] is not supported, valid options: %s", directoryArray[2], validDatabases)
+		return fmt.Sprintf("DATABASE name [%s] is not supported, valid options: %s", directoryArray[2], validDatabases)
 	}
 	// verify "indexes" is under the database name
 	if len(directoryArray) == 4 && directoryArray[3] != "indexes" {
@@ -147,6 +150,24 @@ func couchdbIndexFileValidator(fileName string, fileBytes []byte) error {
 	}
 
 	// validate the index definition
+	err := validateIndexJSON(indexDefinition)
+	if err != nil {
+		return &InvalidIndexContentError{fmt.Sprintf("Index metadata file [%s] is not a valid index definition: %s", fileName, err)}
+	}
+
+	return nil
+
+}
+
+// mongodbIndexFileValidator implements fileValidator
+func mongodbIndexFileValidator(fileName string, fileBytes []byte) error {
+	// if the content does not validate as JSON, return err to invalidate the file
+	boolIsJSON, indexDefinition := isJSON(fileBytes)
+	if !boolIsJSON {
+		return &InvalidIndexContentError{fmt.Sprintf("Index metadata file [%s] is not a valid JSON", fileName)}
+	}
+
+	//validate the index definition
 	err := validateIndexJSON(indexDefinition)
 	if err != nil {
 		return &InvalidIndexContentError{fmt.Sprintf("Index metadata file [%s] is not a valid index definition: %s", fileName, err)}
@@ -297,10 +318,16 @@ func validateFieldMap(jsonFragment map[string]interface{}) error {
 			//Ensure the sort is either "asc" or "desc"
 			jv := strings.ToLower(jsonValue)
 			if jv != "asc" && jv != "desc" {
-				return fmt.Errorf("Sort must be either \"asc\" or \"desc\".  \"%s\" was found.", jsonValue)
+				return fmt.Errorf("Sort must be either \"asc\",\"desc\",1 or -1.  \"%s\" was found.", jsonValue)
 			}
 			logger.Debugf("Found index field name: \"%s\":\"%s\"", jsonKey, jsonValue)
-
+		case float64:
+			//Ensure the sort is either 1 or -1
+			jv := int(jsonValue)
+			if jv != 1 && jv != -1 {
+				return fmt.Errorf("Sort must be either \"asc\",\"desc\",1 or -1.  \"%d\" was found.", jsonValue)
+			}
+			logger.Debugf("Found index field name: \"%s\":\"%s\"", jsonKey, jsonValue)
 		default:
 			return fmt.Errorf("Invalid field definition, fields must be in the form \"fieldname\":\"sort\"")
 		}
