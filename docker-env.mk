@@ -23,7 +23,7 @@ endif
 
 DBUILD = docker build --force-rm $(DOCKER_BUILD_FLAGS)
 
-DOCKER_NS_CUSTOM ?= koankem0901
+DOCKER_NS_CUSTOM ?= akachain
 DOCKER_NS ?= hyperledger
 DOCKER_TAG=$(ARCH)-$(PROJECT_VERSION)
 
